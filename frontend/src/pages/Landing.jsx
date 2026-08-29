@@ -12,6 +12,12 @@ import {
   Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Footer } from "@/components/Footer";
 
@@ -74,6 +80,49 @@ function TrustItem({ icon: Icon, text }) {
     </li>
   );
 }
+
+const FAQS = [
+  {
+    q: "What is Otter Flow?",
+    a: "A lightweight workspace for solo builders. It remembers the next small step in each project so returning to long-running work takes seconds, not minutes.",
+  },
+  {
+    q: "How does the Next-Action Capsule work?",
+    a: "Before you stop working, you save one small, concrete next action (optionally a workspace pointer, a 'done when' note, and an estimate). When you return, Otter shows that capsule first so you can click 'Start Now' and dive back in.",
+  },
+  {
+    q: "Does Otter read or store my source code?",
+    a: "No. Otter does not clone, store, or analyze your repository source code. It stores only minimal repo metadata (id, owner, name, and URL) for repositories you link.",
+  },
+  {
+    q: "What GitHub permissions does Otter request?",
+    a: "Only Metadata (read-only) and Contents (read-only), and only for the repositories you select during installation. Tokens are kept server-side and encrypted.",
+  },
+  {
+    q: "Can I choose which repositories Otter can access?",
+    a: "Yes. During GitHub install you pick exactly which repositories to grant. You can change or revoke this at any time from GitHub or by disconnecting in Otter.",
+  },
+  {
+    q: "Does Otter use AI?",
+    a: "No. Otter does not use AI features, and it does not train any AI models on your project data.",
+  },
+  {
+    q: "Does Otter sell or train on my data?",
+    a: "No. We do not sell your data and we do not train AI on your private project data. See our Privacy and Security pages for details.",
+  },
+  {
+    q: "Can I disconnect GitHub or delete my data?",
+    a: "Yes. Disconnecting GitHub revokes the authorization and deletes the stored connection. Deleting a project permanently removes its sessions, capsules, and telemetry.",
+  },
+  {
+    q: "Is Otter a task manager?",
+    a: "No. Otter is intentionally not a to-do list or Kanban board. It captures a single next action per project to reduce restart friction — nothing more.",
+  },
+  {
+    q: "Who is Otter Flow for?",
+    a: "Solo builders and makers juggling long-running side projects who lose time re-orienting every time they come back.",
+  },
+];
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -230,6 +279,32 @@ export default function Landing() {
           <Link to="/terms" className="underline hover:text-orange-600">Terms</Link>, and{" "}
           <Link to="/security" className="underline hover:text-orange-600">Security</Link> pages.
         </p>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="border-t border-border bg-secondary/30">
+        <div className="mx-auto max-w-3xl px-6 py-20 md:px-8">
+          <div className="mb-8">
+            <p className="mb-3 font-mono text-xs uppercase tracking-widest text-orange-600">
+              FAQ
+            </p>
+            <h2 className="font-heading text-3xl font-extrabold tracking-tighter sm:text-4xl">
+              Questions, answered
+            </h2>
+          </div>
+          <Accordion type="single" collapsible className="w-full" data-testid="faq-accordion">
+            {FAQS.map((f, i) => (
+              <AccordionItem key={i} value={`faq-${i}`} data-testid={`faq-item-${i}`}>
+                <AccordionTrigger className="text-base font-semibold">
+                  {f.q}
+                </AccordionTrigger>
+                <AccordionContent className="text-base text-muted-foreground">
+                  {f.a}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
       </section>
 
       {/* Final CTA */}
