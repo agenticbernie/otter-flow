@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderOpen, ArrowUpRight, Loader2 } from "lucide-react";
+import { Plus, FolderOpen, ArrowUpRight, Loader2, Github, Plug, Search, Check, ChevronsUpDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { useApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,19 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
 
 function ProjectCard({ project, index, onOpen }) {
   return (
@@ -43,6 +56,181 @@ function ProjectCard({ project, index, onOpen }) {
   );
 }
 
+function RepoSelector({ status, repos, loadingRepos, reposError, selected, onSelect, onRetry, onConnect, connecting }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  if (status === null) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-3 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Checking GitHub…
+      </div>
+    );
+  }
+
+  if (!status.connected) {
+    return (
+      <div className="rounded-lg border border-border bg-secondary/30 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-background text-muted-foreground">
+              <Github className="h-4 w-4" strokeWidth={1.5} />
+            </span>
+            <div>
+              <p className="text-sm font-medium leading-none">GitHub not connected</p>
+              <p className="mt-1 text-xs text-muted-foreground">Connect to link a repository</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            data-testid="create-modal-connect-github"
+            onClick={onConnect}
+            disabled={connecting}
+            className="shrink-0 rounded-full bg-[#171717] text-white hover:bg-[#171717]/90 dark:bg-white dark:text-[#0A0A0A] dark:hover:bg-white/90"
+          >
+            {connecting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" strokeWidth={1.5} />}
+            Connect
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // connected
+  if (loadingRepos) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-3 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading repositories…
+      </div>
+    );
+  }
+
+  if (reposError) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+        <p className="text-sm text-destructive">{reposError}</p>
+        <Button variant="outline" size="sm" className="mt-2 h-8 rounded-md" data-testid="create-modal-retry-repos" onClick={onRetry}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
+  if (repos && repos.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-secondary/30 px-3 py-3">
+        <p className="text-sm text-muted-foreground">No repositories found. Check GitHub access or grant more repos.</p>
+        <Button variant="outline" size="sm" className="mt-2 h-8 rounded-md" data-testid="create-modal-retry-repos" onClick={onRetry}>
+          Reload
+        </Button>
+      </div>
+    );
+  }
+
+  const filtered = (repos || []).filter((r) => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return `${r.owner}/${r.name}`.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="space-y-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            data-testid="repo-combobox-trigger"
+            className="w-full justify-between rounded-lg bg-background font-normal hover:bg-background"
+          >
+            <span className="flex items-center gap-2 truncate">
+              <Github className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+              {selected ? (
+                <span className="font-mono text-sm truncate">{selected.owner}/{selected.name}</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">Select repository…</span>
+              )}
+            </span>
+            {selected ? (
+              <span
+                role="button"
+                tabIndex={0}
+                data-testid="clear-repo-btn"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSelect(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(null);
+                  }
+                }}
+                className="ml-2 rounded-sm p-1 hover:bg-secondary"
+              >
+                <X className="h-4 w-4" strokeWidth={1.5} />
+              </span>
+            ) : (
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command shouldFilter={false}>
+            <div className="flex items-center border-b px-3">
+              <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+              <input
+                data-testid="repo-search-input"
+                placeholder="Search repositories…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="flex h-10 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                autoFocus
+              />
+            </div>
+            <CommandList>
+              {filtered.length === 0 ? (
+                <div className="py-6 text-center text-sm text-muted-foreground" data-testid="repo-empty">No results</div>
+              ) : (
+                <CommandGroup>
+                  {filtered.map((r) => {
+                    const isSelected = selected?.id === r.id;
+                    return (
+                      <CommandItem
+                        key={r.id}
+                        data-testid={`repo-option-${r.id}`}
+                        value={`${r.owner}/${r.name}`}
+                        onSelect={() => {
+                          onSelect(r);
+                          setQuery("");
+                          setOpen(false);
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Github className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+                        <span className="flex-1 truncate font-mono text-sm">{r.owner}/{r.name}</span>
+                        {isSelected && <Check className="h-4 w-4 shrink-0 text-orange-600" strokeWidth={2} />}
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {selected && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="selected-repo-hint">
+          <Check className="h-3.5 w-3.5 text-orange-600" strokeWidth={2} />
+          Will link <span className="font-mono text-foreground">{selected.owner}/{selected.name}</span> on create
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const api = useApi();
   const navigate = useNavigate();
@@ -52,6 +240,14 @@ export default function Dashboard() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // GitHub selector state
+  const [ghStatus, setGhStatus] = useState(null);
+  const [repos, setRepos] = useState(null);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [reposError, setReposError] = useState("");
+  const [selectedRepo, setSelectedRepo] = useState(null);
+  const [connecting, setConnecting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -69,25 +265,129 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const loadGhStatus = useCallback(async () => {
+    try {
+      setReposError("");
+      const s = await api.githubStatus();
+      setGhStatus(s);
+      return s;
+    } catch {
+      setGhStatus({ connected: false });
+      return { connected: false };
+    }
+  }, [api]);
+
+  const loadRepos = useCallback(async () => {
+    try {
+      setLoadingRepos(true);
+      setReposError("");
+      const list = await api.githubRepos();
+      setRepos(list);
+    } catch (e) {
+      setReposError(e?.response?.data?.detail || "Could not load repositories");
+      setRepos(null);
+    } finally {
+      setLoadingRepos(false);
+    }
+  }, [api]);
+
+  // When modal opens, check connection and auto-load repos if connected
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const s = await loadGhStatus();
+      if (!cancelled && s?.connected) {
+        await loadRepos();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, loadGhStatus, loadRepos]);
+
+  const handleConnect = async () => {
+    try {
+      setConnecting(true);
+      const { url } = await api.githubConnectUrl();
+      window.location.assign(url);
+    } catch {
+      toast.error("Could not start GitHub connect");
+      setConnecting(false);
+    }
+  };
+
+  const handleSelectRepo = (r) => {
+    setSelectedRepo(r);
+    if (r) {
+      setName(r.name);
+    } else {
+      // clearing does not auto-clear name to avoid surprising user; keep as-is
+    }
+  };
+
+  const resetForm = () => {
+    setName("");
+    setDescription("");
+    setSelectedRepo(null);
+    setReposError("");
+  };
+
+  const handleOpenChange = (v) => {
+    setOpen(v);
+    if (!v) {
+      // delay reset slightly to avoid flicker during close animation
+      setTimeout(() => resetForm(), 200);
+    }
+  };
+
+  const doCreate = async (withGithub) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (submitting) return;
     try {
       setSubmitting(true);
       const created = await api.createProject({
-        name: name.trim(),
+        name: trimmed,
         description: description.trim() || null,
       });
+
+      // Optimistically add to list and reset UI immediately; linking is secondary
       setProjects((prev) => [created, ...prev]);
-      setName("");
-      setDescription("");
-      setOpen(false);
       toast.success("Project created");
+
+      const shouldLink = withGithub && selectedRepo;
+      if (shouldLink) {
+        try {
+          await api.linkRepo(created.id, {
+            repo_id: selectedRepo.id,
+            repo_owner: selectedRepo.owner,
+            repo_name: selectedRepo.name,
+            repo_url: selectedRepo.url,
+          });
+          // update local list with linked repo (avoid refetch)
+          setProjects((prev) => prev.map((p) => p.id === created.id ? { ...p, repo_id: selectedRepo.id, repo_owner: selectedRepo.owner, repo_name: selectedRepo.name, repo_url: selectedRepo.url } : p));
+          toast.success("Repository linked");
+        } catch (e) {
+          toast.error(e?.response?.data?.detail || "Project created, but repository could not be linked. You can link it from the project page.");
+        }
+      }
+
+      setOpen(false);
+      resetForm();
     } catch (e) {
-      toast.error("Could not create project");
+      toast.error(e?.response?.data?.detail || "Could not create project");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    await doCreate(true);
+  };
+
+  const handleCreateWithoutGithub = async (e) => {
+    e.preventDefault();
+    await doCreate(false);
   };
 
   return (
@@ -102,7 +402,7 @@ export default function Dashboard() {
           </h1>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button
               data-testid="create-project-btn"
@@ -119,7 +419,7 @@ export default function Dashboard() {
                   Create a project
                 </DialogTitle>
                 <DialogDescription>
-                  Give your project a name. You can add more later.
+                  Give your project a name. You can add more later. Linking a GitHub repo is optional.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-5">
@@ -149,8 +449,40 @@ export default function Dashboard() {
                     className="focus-visible:ring-orange-500"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    GitHub repository <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <RepoSelector
+                    status={ghStatus}
+                    repos={repos}
+                    loadingRepos={loadingRepos}
+                    reposError={reposError}
+                    selected={selectedRepo}
+                    onSelect={handleSelectRepo}
+                    onRetry={loadRepos}
+                    onConnect={handleConnect}
+                    connecting={connecting}
+                  />
+                  {ghStatus?.connected && repos && repos.length > 0 && (
+                    <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
+                      {selectedRepo ? "You can change the selection or create without linking." : "Choose a repo or leave empty to skip."}
+                    </p>
+                  )}
+                </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  data-testid="create-without-github-btn"
+                  onClick={handleCreateWithoutGithub}
+                  disabled={submitting || !name.trim()}
+                  className="rounded-full"
+                >
+                  Create without GitHub
+                </Button>
                 <Button
                   type="submit"
                   data-testid="submit-project-btn"
@@ -160,7 +492,7 @@ export default function Dashboard() {
                   {submitting && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  Create project
+                  {selectedRepo ? "Create & link" : "Create project"}
                 </Button>
               </DialogFooter>
             </form>
