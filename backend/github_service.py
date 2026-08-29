@@ -49,6 +49,32 @@ def gh_headers(token: str | None = None) -> dict:
     return h
 
 
+async def discover_verified_installation(token: str) -> int | None:
+    """Discover the Otter Flow GitHub App installation accessible to the authenticated user.
+
+    Uses GET /user/installations and verifies the installation belongs to this app
+    via app_slug / app_id. Returns the verified installation id or None if not found.
+    Does not rely on callback query installation_id.
+    """
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(f"{API}/user/installations?per_page=100", headers=gh_headers(token))
+        if r.status_code == 401:
+            return None
+        r.raise_for_status()
+        data = r.json()
+        installations = data.get("installations", [])
+        # Prefer exact match on app_slug, fallback to app_id
+        app_id = os.environ.get("GITHUB_APP_ID", "")
+        for inst in installations:
+            inst_app_slug = inst.get("app_slug") or (inst.get("app") or {}).get("slug")
+            inst_app_id = str(inst.get("app_id") or (inst.get("app") or {}).get("id") or "")
+            if inst_app_slug == APP_SLUG or (app_id and inst_app_id == app_id):
+                return inst.get("id")
+        # Fallback: if no app_slug match but single installation exists and we have no better signal,
+        # treat it as not verified (strict). Only return None to avoid picking wrong app.
+        return None
+
+
 def build_install_url(state: str) -> str:
     return f"https://github.com/apps/{APP_SLUG}/installations/new?" + urlencode({"state": state})
 

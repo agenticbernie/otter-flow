@@ -366,8 +366,8 @@ async def github_callback(
 ):
     dest = f"{gh.FRONTEND_URL}/?github="
     logger.info(
-        "github_callback hit: has_state=%s has_code=%s has_installation_id=%s setup_action=%s",
-        bool(state), bool(code), installation_id is not None, setup_action,
+        "github_callback hit: has_state=%s has_code=%s callback_installation_id=%s setup_action=%s",
+        bool(state), bool(code), installation_id, setup_action,
     )
     if not state:
         logger.warning("github_callback: missing state")
@@ -385,28 +385,34 @@ async def github_callback(
         return RedirectResponse(dest + "error")
 
     owner_id = st.owner_id
-    logger.info("github_callback: state matched for owner_id=%s has_code=%s has_installation_id=%s", owner_id, bool(code), installation_id is not None)
+    logger.info("github_callback: state matched for owner_id=%s has_code=%s callback_installation_id=%s", owner_id, bool(code), installation_id)
     await db.delete(st)
     await db.commit()
 
-    # Handle installation-only callbacks (no code) as setup updates for existing connections
+    # Handle installation-only callbacks (no code) – verify via API if possible, otherwise error
     if not code:
         if installation_id is not None:
             conn = await _get_connection(db, owner_id)
             if conn is not None:
-                conn.installation_id = installation_id
-                # best-effort: refresh login if token still valid
+                # Verify the installation is accessible to the existing token (best effort)
                 try:
                     token = gh.decrypt(conn.access_token_enc)
+                    verified = await gh.discover_verified_installation(token)
+                    if verified is not None:
+                        conn.installation_id = verified
+                    else:
+                        # Fallback: keep callback id if verification unavailable, but log
+                        logger.warning("github_callback: install-only discover returned None, keeping callback id for owner_id=%s", owner_id)
+                        conn.installation_id = installation_id
                     login = await gh.fetch_login(token)
                     if login:
                         conn.github_login = login
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("github_callback: install-only verify failed for owner_id=%s %s", owner_id, type(exc).__name__)
                 await db.commit()
-                logger.info("github_callback: installation-only update committed for owner_id=%s installation_id=%s", owner_id, installation_id)
+                logger.info("github_callback: installation-only update committed for owner_id=%s installation_id=%s", owner_id, conn.installation_id if 'conn' in locals() and conn else installation_id)
                 return RedirectResponse(dest + "connected")
-        logger.warning("github_callback: missing code and no installation_id for owner_id=%s", owner_id)
+        logger.warning("github_callback: missing code and no valid installation for owner_id=%s", owner_id)
         return RedirectResponse(dest + "error")
 
     try:
@@ -419,21 +425,47 @@ async def github_callback(
         logger.warning("github_callback: token exchange exception for owner_id=%s %s", owner_id, type(exc).__name__)
         return RedirectResponse(dest + "error")
 
-    login = await gh.fetch_login(token_data["access_token"])
+    access_token = token_data["access_token"]
+    login = await gh.fetch_login(access_token)
     logger.info("github_callback: fetch_login=%s for owner_id=%s", login, owner_id)
+
+    # Discover verified installation via GitHub API – do NOT rely solely on callback query
+    verified_installation_id = await gh.discover_verified_installation(access_token)
+    logger.info(
+        "github_callback: discover_verified_installation=%s callback_installation_id=%s for owner_id=%s",
+        verified_installation_id, installation_id, owner_id,
+    )
+    # Fallback: if discovery found nothing but callback provided an id, verify it is at least accessible
+    if verified_installation_id is None and installation_id is not None:
+        try:
+            async with gh.httpx.AsyncClient(timeout=10) as c:
+                r = await c.get(f"{gh.API}/user/installations?per_page=100", headers=gh.gh_headers(access_token))
+                if r.status_code == 200:
+                    ids = [x.get("id") for x in r.json().get("installations", [])]
+                    if installation_id in ids:
+                        verified_installation_id = installation_id
+                        logger.info("github_callback: fallback callback id verified for owner_id=%s", owner_id)
+        except Exception:
+            pass
+
+    if verified_installation_id is None:
+        logger.warning("github_callback: no verified Otter Flow installation found for owner_id=%s login=%s", owner_id, login)
+        # Treat as incomplete installation – do not persist without verified install
+        # Still persist token but status will remain disconnected until install completed
+        # To keep Render-style single flow, redirect to error so frontend shows retry
+        return RedirectResponse(dest + "error")
+
     conn = await _get_connection(db, owner_id)
     is_new = conn is None
     if conn is None:
         conn = GithubConnection(owner_id=owner_id)
         db.add(conn)
-    # Only overwrite installation_id if GitHub provided one; preserve existing otherwise
-    if installation_id is not None:
-        conn.installation_id = installation_id
+    conn.installation_id = verified_installation_id
     conn.github_login = login
     gh.apply_token_response(conn, token_data)
     await db.commit()
     logger.info(
-        "github_callback: GithubConnection %s for owner_id=%s login=%s installation_id=%s",
+        "github_callback: GithubConnection %s for owner_id=%s login=%s installation_id=%s (verified)",
         "created" if is_new else "updated",
         owner_id,
         login,

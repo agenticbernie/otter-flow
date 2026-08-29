@@ -68,7 +68,9 @@ function RepoSelector({ status, repos, loadingRepos, reposError, selected, onSel
     );
   }
 
-  if (!status.connected) {
+  // DISCONNECTED – single Connect GitHub entry point (Render-style)
+  // Treat needs_setup as disconnected for single-flow UX (no second manual step)
+  if (!status.connected || status.needs_setup) {
     return (
       <div className="rounded-lg border border-border bg-secondary/30 p-3">
         <div className="flex items-center justify-between gap-3">
@@ -89,50 +91,14 @@ function RepoSelector({ status, repos, loadingRepos, reposError, selected, onSel
             className="shrink-0 rounded-full bg-[#171717] text-white hover:bg-[#171717]/90 dark:bg-white dark:text-[#0A0A0A] dark:hover:bg-white/90"
           >
             {connecting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" strokeWidth={1.5} />}
-            Connect
+            Connect GitHub
           </Button>
         </div>
       </div>
     );
   }
 
-  // connected but installation incomplete -> needs setup
-  if (status.needs_setup) {
-    return (
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3" data-testid="github-needs-setup">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-background text-amber-600">
-              <Github className="h-4 w-4" strokeWidth={1.5} />
-            </span>
-            <div>
-              <p className="text-sm font-medium leading-none">
-                {status.login ? `@${status.login} — finish setup` : "Finish GitHub setup"}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">Installation required to access repositories.</p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Button size="sm" variant="ghost" data-testid="github-disconnect-btn" onClick={onDisconnect} className="h-8 rounded-md text-muted-foreground">
-              Disconnect
-            </Button>
-            <Button
-              size="sm"
-              data-testid="create-modal-finish-setup"
-              onClick={onConnect}
-              disabled={connecting}
-              className="shrink-0 rounded-full bg-[#171717] text-white hover:bg-[#171717]/90 dark:bg-white dark:text-[#0A0A0A] dark:hover:bg-white/90"
-            >
-              {connecting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" strokeWidth={1.5} />}
-              Finish setup
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // connected and setup complete
+  // CONNECTED – never show Connect again
   if (loadingRepos) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-3 text-sm text-muted-foreground">
@@ -142,21 +108,8 @@ function RepoSelector({ status, repos, loadingRepos, reposError, selected, onSel
   }
 
   if (reposError) {
-    // if error is due to missing installation, show finish-setup variant
-    const isSetupError = reposError.toLowerCase().includes("not connected") || reposError.toLowerCase().includes("install");
-    if (isSetupError) {
-      return (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3" data-testid="github-needs-setup">
-          <p className="text-sm text-amber-700 dark:text-amber-400">{reposError}</p>
-          <div className="mt-2 flex gap-2">
-            <Button variant="outline" size="sm" className="h-8 rounded-md" data-testid="create-modal-retry-repos" onClick={onRetry}>Try again</Button>
-            <Button size="sm" data-testid="create-modal-finish-setup" onClick={onConnect} disabled={connecting} className="h-8 rounded-full bg-[#171717] text-white">Finish setup</Button>
-          </div>
-        </div>
-      );
-    }
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3" data-testid="github-connection-error">
         <p className="text-sm text-destructive">{reposError}</p>
         <Button variant="outline" size="sm" className="mt-2 h-8 rounded-md" data-testid="create-modal-retry-repos" onClick={onRetry}>
           Try again
@@ -380,7 +333,7 @@ export default function Dashboard() {
       const fetchWithRetry = async (attempt = 0) => {
         const s = await loadGhStatus();
         console.info("[github] status after callback", s);
-        if (s?.connected && !s.needs_setup) {
+        if (s?.connected) {
           loadRepos();
         } else if (gh === "connected" && !s?.connected && attempt < 2) {
           // Clerk token may not be ready immediately after redirect; retry once
@@ -392,15 +345,15 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When modal opens, check connection and auto-load repos if connected and setup complete
+  // When modal opens, check connection and auto-load repos if CONNECTED
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
       const s = await loadGhStatus();
-      if (!cancelled && s?.connected && !s.needs_setup) {
+      if (!cancelled && s?.connected) {
         await loadRepos();
-      } else if (!cancelled && s?.connected && s.needs_setup) {
+      } else {
         setRepos(null);
       }
     })();

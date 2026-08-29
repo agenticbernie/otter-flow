@@ -56,7 +56,7 @@ export function RepositorySection({ project, onLinked }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Immediately refresh after GitHub callback (?github=connected|error)
+  // Immediately refresh after GitHub callback (?github=connected|error) – Render-style single flow
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const gh = params.get("github");
@@ -65,7 +65,7 @@ export function RepositorySection({ project, onLinked }) {
       const fetchWithRetry = async (attempt = 0) => {
         const s = await loadStatus();
         console.info("[github] RepositorySection status after callback", s);
-        if (s?.connected && !s.needs_setup) loadRepos();
+        if (s?.connected) loadRepos();
         else if (gh === "connected" && !s?.connected && attempt < 2) {
           setTimeout(() => fetchWithRetry(attempt + 1), 800);
         }
@@ -75,9 +75,9 @@ export function RepositorySection({ project, onLinked }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-load repos when status becomes connected and setup complete
+  // Auto-load repos when CONNECTED (single flow – never show second install step)
   useEffect(() => {
-    if (status?.connected && !status.needs_setup && repos === null && !loadingRepos && !reposError) {
+    if (status?.connected && repos === null && !loadingRepos && !reposError) {
       loadRepos();
     }
   }, [status, repos, loadingRepos, reposError, loadRepos]);
@@ -189,12 +189,12 @@ export function RepositorySection({ project, onLinked }) {
         </div>
       ) : (
         <div className="space-y-5">
-          {/* Status header */}
+          {/* Status header – Render-style: DISCONNECTED vs CONNECTED only */}
           {status === null ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Checking GitHub…
             </div>
-          ) : !status.connected ? (
+          ) : !status.connected || status.needs_setup ? (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 p-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-background text-muted-foreground">
@@ -214,35 +214,6 @@ export function RepositorySection({ project, onLinked }) {
                 <Plug className="mr-2 h-4 w-4" strokeWidth={1.5} />
                 Connect GitHub
               </Button>
-            </div>
-          ) : status.needs_setup ? (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3" data-testid="github-needs-setup">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-background text-amber-600">
-                    <Github className="h-4 w-4" strokeWidth={1.5} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium leading-none">
-                      {status.login ? `@${status.login} — finish setup` : "Finish GitHub setup"}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">Installation required to access repositories.</p>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <Button variant="ghost" size="sm" data-testid="github-disconnect-btn" onClick={disconnect} disabled={busy} className="h-8 rounded-md text-muted-foreground">Disconnect</Button>
-                  <Button
-                    size="sm"
-                    data-testid="github-finish-setup-btn"
-                    onClick={connect}
-                    disabled={busy}
-                    className="shrink-0 rounded-full bg-[#171717] text-white hover:bg-[#171717]/90 dark:bg-white dark:text-[#0A0A0A] dark:hover:bg-white/90"
-                  >
-                    <Plug className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
-                    Finish setup
-                  </Button>
-                </div>
-              </div>
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
@@ -276,8 +247,8 @@ export function RepositorySection({ project, onLinked }) {
             </div>
           )}
 
-          {/* Connected and setup complete -> searchable selector */}
-          {status?.connected && !status.needs_setup && (
+          {/* CONNECTED -> searchable selector (never show Connect again) */}
+          {status?.connected && (
             <>
               {loadingRepos ? (
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-3 text-sm text-muted-foreground">
@@ -361,8 +332,8 @@ export function RepositorySection({ project, onLinked }) {
             </>
           )}
 
-          {/* Manual fallback - always available unless needs_setup */}
-          {(!status?.needs_setup) && (
+          {/* Manual fallback – only when CONNECTED */}
+          {status?.connected && (
             <form onSubmit={linkManual} className="space-y-2">
               <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
                 Or paste a repo URL
