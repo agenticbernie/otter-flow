@@ -31,5 +31,12 @@ export function useApi() {
     startSession: (pid) => request("post", `/projects/${pid}/sessions/start`),
     endSession: (pid, capsule) => request("post", `/projects/${pid}/sessions/end`, capsule),
     startNow: (capsuleId) => request("post", `/capsules/${capsuleId}/start-now`),
+    logEvent: (type, projectId) => request("post", "/events", { type, project_id: projectId || null }),
+    githubStatus: () => request("get", "/github/status"),
+    githubConnectUrl: () => request("post", "/github/connect-url"),
+    githubRepos: () => request("get", "/github/repos"),
+    githubDisconnect: () => request("delete", "/github/disconnect"),
+    linkRepo: (pid, payload) => request("post", `/projects/${pid}/link-repo`, payload),
+    unlinkRepo: (pid) => request("delete", `/projects/${pid}/repo`),
   };
 }

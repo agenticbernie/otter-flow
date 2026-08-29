@@ -198,6 +198,7 @@ export function SessionLoop({ projectId }) {
       setBusy(true);
       const session = await api.startSession(projectId);
       setState({ active_session: session, pending_capsule: null });
+      api.logEvent("session_started", projectId).catch(() => {});
       toast.success("Session started");
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Could not start session");
@@ -224,6 +225,8 @@ export function SessionLoop({ projectId }) {
       setPointer("");
       setDoneWhen("");
       setMinutes("");
+      api.logEvent("session_ended", projectId).catch(() => {});
+      api.logEvent("capsule_created", projectId).catch(() => {});
       toast.success("Session ended · next action saved");
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Could not end session");
@@ -236,10 +239,12 @@ export function SessionLoop({ projectId }) {
   const handleStartNow = async () => {
     const cap = state.pending_capsule;
     if (!cap) return;
+    api.logEvent("start_clicked", projectId).catch(() => {});
     try {
       setBusy(true);
       const res = await api.startNow(cap.id);
       setState({ active_session: res.session, pending_capsule: null });
+      api.logEvent("session_started", projectId).catch(() => {});
       toast.success("Session started");
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Could not start session");

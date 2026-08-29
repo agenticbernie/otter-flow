@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Layers, Package, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useApi } from "@/lib/api";
 import { SessionLoop } from "@/components/SessionLoop";
+import { RepositorySection } from "@/components/RepositorySection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,29 +29,6 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
-function ReservedBlock({ icon: Icon, title, testId }) {
-  return (
-    <div
-      data-testid={testId}
-      className="rounded-2xl border-2 border-dashed border-border/60 bg-secondary/30 p-8"
-    >
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-          <Icon className="h-5 w-5" strokeWidth={1.5} />
-        </span>
-        <div>
-          <h3 className="font-heading text-lg font-bold tracking-tight">
-            {title}
-          </h3>
-          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-            Reserved · Coming soon
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function ProjectDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -70,6 +48,7 @@ export default function ProjectDetail() {
       setLoading(true);
       const p = await api.getProject(id);
       setProject(p);
+      api.logEvent("project_opened", id).catch(() => {});
     } catch (e) {
       setNotFound(true);
     } finally {
@@ -81,6 +60,14 @@ export default function ProjectDetail() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gh = params.get("github");
+    if (gh === "connected") toast.success("GitHub connected");
+    else if (gh === "error") toast.error("GitHub connection failed");
+    if (gh) window.history.replaceState({}, "", window.location.pathname);
+  }, []);
 
   const openEdit = () => {
     setName(project.name);
@@ -236,9 +223,8 @@ export default function ProjectDetail() {
         </p>
       </div>
 
-      <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
-        <ReservedBlock icon={Layers} title="Sessions" testId="sessions-placeholder" />
-        <ReservedBlock icon={Package} title="Capsules" testId="capsules-placeholder" />
+      <div className="mt-10">
+        <RepositorySection project={project} onLinked={setProject} />
       </div>
 
       {/* Edit dialog */}

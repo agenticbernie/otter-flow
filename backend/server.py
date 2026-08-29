@@ -1,17 +1,20 @@
 import logging
 import os
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timezone, timedelta
 from typing import Annotated, List, Optional
 
 from fastapi import FastAPI, APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import Project, Session, Capsule, utcnow
+from models import Project, Session, Capsule, GithubConnection, OAuthState, Event, utcnow
 from auth import CurrentUserId
+import github_service as gh
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -36,6 +39,10 @@ class ProjectOut(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    repo_id: Optional[int] = None
+    repo_owner: Optional[str] = None
+    repo_name: Optional[str] = None
+    repo_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -107,6 +114,8 @@ async def update_project(
 @api_router.delete("/projects/{project_id}", status_code=204)
 async def delete_project(project_id: str, owner_id: CurrentUserId, db: DbSession):
     project = await _get_owned_project(db, project_id, owner_id)
+    # Sessions & capsules cascade via FK; remove telemetry events explicitly.
+    await db.execute(delete(Event).where(Event.project_id == project_id, Event.owner_id == owner_id))
     await db.delete(project)
     await db.commit()
     return None
@@ -252,6 +261,156 @@ async def start_now(capsule_id: str, owner_id: CurrentUserId, db: DbSession):
     await db.refresh(session)
     await db.refresh(capsule)
     return LoopStepOut(session=session, capsule=capsule)
+
+
+# ---------------- Telemetry ----------------
+ALLOWED_EVENTS = {
+    "project_opened",
+    "session_started",
+    "session_ended",
+    "capsule_created",
+    "start_clicked",
+}
+
+
+class EventCreate(BaseModel):
+    type: str
+    project_id: Optional[str] = None
+
+
+@api_router.post("/events", status_code=201)
+async def create_event(payload: EventCreate, owner_id: CurrentUserId, db: DbSession):
+    if payload.type not in ALLOWED_EVENTS:
+        raise HTTPException(status_code=400, detail="Unknown event type")
+    db.add(Event(owner_id=owner_id, project_id=payload.project_id, type=payload.type))
+    await db.commit()
+    return {"ok": True}
+
+
+# ---------------- Project <-> Repo link ----------------
+class RepoLink(BaseModel):
+    repo_id: Optional[int] = None
+    repo_owner: Optional[str] = Field(default=None, max_length=255)
+    repo_name: Optional[str] = Field(default=None, max_length=255)
+    repo_url: str = Field(min_length=1, max_length=2000)
+
+
+@api_router.post("/projects/{project_id}/link-repo", response_model=ProjectOut)
+async def link_repo(project_id: str, payload: RepoLink, owner_id: CurrentUserId, db: DbSession):
+    project = await _get_owned_project(db, project_id, owner_id)
+    project.repo_id = payload.repo_id
+    project.repo_owner = (payload.repo_owner.strip() if payload.repo_owner else None)
+    project.repo_name = (payload.repo_name.strip() if payload.repo_name else None)
+    project.repo_url = payload.repo_url.strip()
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
+@api_router.delete("/projects/{project_id}/repo", response_model=ProjectOut)
+async def unlink_repo(project_id: str, owner_id: CurrentUserId, db: DbSession):
+    project = await _get_owned_project(db, project_id, owner_id)
+    project.repo_id = None
+    project.repo_owner = None
+    project.repo_name = None
+    project.repo_url = None
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
+# ---------------- GitHub App integration ----------------
+class GithubStatus(BaseModel):
+    connected: bool
+    login: Optional[str] = None
+
+
+class RepoOut(BaseModel):
+    id: int
+    owner: str
+    name: str
+    url: str
+
+
+async def _get_connection(db: AsyncSession, owner_id: str) -> Optional[GithubConnection]:
+    res = await db.execute(select(GithubConnection).where(GithubConnection.owner_id == owner_id))
+    return res.scalar_one_or_none()
+
+
+@api_router.post("/github/connect-url")
+async def github_connect_url(owner_id: CurrentUserId, db: DbSession):
+    state = secrets.token_urlsafe(32)
+    db.add(OAuthState(state=state, owner_id=owner_id, expires_at=utcnow() + timedelta(minutes=10)))
+    await db.commit()
+    return {"url": gh.build_install_url(state)}
+
+
+@api_router.get("/github/callback")
+async def github_callback(
+    db: DbSession, code: Optional[str] = None, state: Optional[str] = None,
+    installation_id: Optional[int] = None, setup_action: Optional[str] = None,
+):
+    dest = f"{gh.FRONTEND_URL}/?github="
+    if not code or not state:
+        return RedirectResponse(dest + "error")
+
+    res = await db.execute(select(OAuthState).where(OAuthState.state == state))
+    st = res.scalar_one_or_none()
+    if st is None or st.expires_at < utcnow():
+        if st is not None:
+            await db.delete(st)
+            await db.commit()
+        return RedirectResponse(dest + "error")
+
+    owner_id = st.owner_id
+    await db.delete(st)
+    await db.commit()
+
+    try:
+        token_data = await gh.exchange_code(code)
+    except HTTPException:
+        return RedirectResponse(dest + "error")
+
+    login = await gh.fetch_login(token_data["access_token"])
+    conn = await _get_connection(db, owner_id)
+    if conn is None:
+        conn = GithubConnection(owner_id=owner_id)
+        db.add(conn)
+    conn.installation_id = installation_id
+    conn.github_login = login
+    gh.apply_token_response(conn, token_data)
+    await db.commit()
+    return RedirectResponse(dest + "connected")
+
+
+@api_router.get("/github/status", response_model=GithubStatus)
+async def github_status(owner_id: CurrentUserId, db: DbSession):
+    conn = await _get_connection(db, owner_id)
+    if conn is None:
+        return GithubStatus(connected=False)
+    return GithubStatus(connected=True, login=conn.github_login)
+
+
+@api_router.get("/github/repos", response_model=List[RepoOut])
+async def github_repos(owner_id: CurrentUserId, db: DbSession):
+    conn = await _get_connection(db, owner_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="GitHub is not connected")
+    return await gh.fetch_granted_repos(db, conn)
+
+
+@api_router.delete("/github/disconnect", status_code=204)
+async def github_disconnect(owner_id: CurrentUserId, db: DbSession):
+    conn = await _get_connection(db, owner_id)
+    if conn is not None:
+        try:
+            await gh.revoke_grant(gh.decrypt(conn.access_token_enc))
+        except Exception:
+            pass  # best-effort revoke; always remove local record
+        await db.delete(conn)
+        await db.commit()
+    return None
+
 
 
 

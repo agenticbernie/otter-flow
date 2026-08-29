@@ -1,0 +1,27 @@
+{
+  "summary": "Backend-only MVP verification of Otter Flow against live deployed API + Supabase Postgres using real Clerk-minted session tokens. Ran full pytest suite (4 suites) — ALL PASSED in 61.59s: test_crud.py, test_live_e2e.py, test_loop_e2e.py, test_mvp_e2e.py. MVP coverage in test_mvp_e2e.py: (1) GitHub server-side unconnected paths — GET /api/github/status -> {connected:false, login:null}; POST /api/github/connect-url returns a github.com/apps/otter-flow/installations/new?state=... URL; GET /api/github/repos -> 404; DELETE /api/github/disconnect -> 204 no-op. (2) GitHub callback CSRF — bogus state and missing state both redirect (302/307) to a URL containing github=error, no connection created. (3) Repo link + manual fallback — POST /api/projects/{id}/link-repo stores repo_url/owner/name, persists on GET; DELETE /api/projects/{id}/repo clears them (repo_url null). (4) Telemetry — all 5 allowed event types (project_opened, session_started, session_ended, capsule_created, start_clicked) return 201; unknown type -> 400; DB count of events for project = 5. (5) Ownership isolation — user B gets 404 on link-repo and repo unlink for user A's project (loop tests also cover isolation on session-state, sessions/start, capsules/{id}/start-now). (6) Deletion cascade — delete project 204; subsequent GET project 404; GET session-state 404 (sessions/capsules gone); events count = 0 (telemetry removed). Persistence verified via subsequent GETs + direct asyncpg queries against Supabase.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_mvp_e2e.py",
+    "/app/backend/tests/test_loop_e2e.py",
+    "/app/backend/tests/test_crud.py",
+    "/app/backend/tests/test_live_e2e.py",
+    "/app/test_reports/pytest/iter3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GitHub tokens must remain server-side only and encrypted with TOKEN_ENCRYPTION_KEY — verified indirectly via absence of token in status/repos responses; audit github_service.py to ensure no token ever appears in logs.",
+    "OAuthState rows should be single-use and expire (TTL) — confirm cleanup after successful/failed callback to prevent replay.",
+    "Deletion cascade currently relies on app-level ordering — ideally use FK ON DELETE CASCADE at DB (projects -> sessions/capsules/events) for atomicity.",
+    "Telemetry endpoint should rate-limit per user to prevent abuse; ensure Event.type is validated against enum server-side (currently 400 confirmed for bad type)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A"},
+  "test_credentials": "Uses CLERK_SECRET_KEY from /app/backend/.env to mint ephemeral users/sessions/JWTs per request; cleaned up via DELETE /v1/users/{id} in test finally block.",
+  "seed_data_creation": "None persistent — every test creates and tears down its own Clerk users and Supabase rows.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All MVP backend endpoints (GitHub server-side branches, repo link/manual fallback, telemetry, deletion cascade with event cleanup) plus prior auth/CRUD and session/capsule golden loop are green against live deployed API and Supabase. Live GitHub OAuth install+authorize is external and must be verified manually by the user on otterflow.hackon.team; do NOT attempt to automate it. Frontend/Clerk UI intentionally not tested per request.",
+  "rca of the issue": "No issues found."
+}

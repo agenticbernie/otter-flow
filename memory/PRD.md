@@ -36,6 +36,13 @@ strict per-user data isolation.
 - **Session/Capsule core loop**: start/end session, required next-action capsule on end, session-state endpoint (refresh-safe), Start Now (consumes capsule + new session), single-active-session enforcement (409), full ownership isolation. Frontend `SessionLoop` component shows active timer / pending capsule / idle-start, rendered above project content.
 - Verified backend end-to-end (pytest, 3/3 passing): auth rejection, full CRUD, the complete loop, persistence, and cross-user isolation — via dependency-override and LIVE deployed API with real Clerk tokens.
 
+## MVP Final Pass (2026-08-29)
+- **GitHub App (server-side, user-token flow)**: connect-url → install URL with CSRF state; `/api/github/callback` exchanges code (state-validated), stores encrypted tokens server-side; status; repos (lists only granted repos via `/user/installations` → `/user/installations/{id}/repositories`); disconnect (revokes grant + deletes record). No private key, no source-code access. Tokens encrypted (Fernet), never sent to the browser.
+- **Repo linking**: `POST /api/projects/{id}/link-repo` (from granted list or **manual GitHub URL fallback**), stores only id/owner/name/url; `DELETE .../repo` unlinks. Frontend `RepositorySection`.
+- **Telemetry**: `POST /api/events` for the 5 allowed types (project_opened, session_started, session_ended, capsule_created, start_clicked), timestamped; unknown types rejected. Fired from the frontend loop.
+- **Privacy/controls**: disconnect GitHub; delete Project cascades sessions/capsules (FK) + events (explicit); ownership isolation enforced everywhere; public **Privacy / Terms / Security** pages stating Otter does not sell data, train AI on project data, or store repo source code.
+- Verified backend end-to-end (pytest, 4/4 suites, live API + Supabase + real Clerk tokens): auth, CRUD, golden loop, GitHub server-side branches, callback CSRF, telemetry, isolation, deletion cascade.
+
 ## Known Issues / To Verify Manually
 - **Clerk frontend load**: in the automated headless browser the Clerk widget stayed on the loading spinner (likely third-party-cookie/handshake behavior in the proxied preview). Needs manual confirmation in a real browser (user is actively configuring Clerk providers).
 - Interactive Clerk sign-in (OAuth/email link) cannot be automated; verified via backend token minting instead.

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
-from sqlalchemy import String, Text, DateTime, ForeignKey, Integer
+from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, BigInteger
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -40,6 +40,10 @@ class Project(Base):
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    repo_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    repo_owner: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    repo_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    repo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
@@ -95,3 +99,40 @@ class Capsule(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     project: Mapped["Project"] = relationship(back_populates="capsules")
+
+
+
+class GithubConnection(Base):
+    """Per-user GitHub App connection. Tokens are stored encrypted, server-side only."""
+    __tablename__ = "github_connections"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    owner_id: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    github_login: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    installation_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    access_token_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token_enc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    access_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    refresh_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class OAuthState(Base):
+    """Short-lived CSRF/state mapping for the GitHub install flow."""
+    __tablename__ = "oauth_states"
+
+    state: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Event(Base):
+    """Minimal telemetry event (timestamped)."""
+    __tablename__ = "events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    owner_id: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    project_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
+    type: Mapped[str] = mapped_column(String(40), index=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -1,4 +1,5 @@
 import { SignIn } from "@clerk/clerk-react";
+import { Link } from "react-router-dom";
 import { Waves } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -38,6 +39,12 @@ export default function SignInPage() {
             <SignIn routing="hash" signUpUrl="#/sign-up" />
           </div>
         </div>
+      </div>
+
+      <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-5 text-sm text-muted-foreground">
+        <Link to="/privacy" className="hover:text-orange-600" data-testid="signin-privacy">Privacy</Link>
+        <Link to="/terms" className="hover:text-orange-600" data-testid="signin-terms">Terms</Link>
+        <Link to="/security" className="hover:text-orange-600" data-testid="signin-security">Security</Link>
       </div>
     </div>
   );
