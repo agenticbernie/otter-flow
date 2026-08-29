@@ -335,6 +335,8 @@ async def unlink_repo(project_id: str, owner_id: CurrentUserId, db: DbSession):
 class GithubStatus(BaseModel):
     connected: bool
     login: Optional[str] = None
+    installation_id: Optional[int] = None
+    needs_setup: bool = False
 
 
 class RepoOut(BaseModel):
@@ -363,7 +365,7 @@ async def github_callback(
     installation_id: Optional[int] = None, setup_action: Optional[str] = None,
 ):
     dest = f"{gh.FRONTEND_URL}/?github="
-    if not code or not state:
+    if not state:
         return RedirectResponse(dest + "error")
 
     res = await db.execute(select(OAuthState).where(OAuthState.state == state))
@@ -378,6 +380,24 @@ async def github_callback(
     await db.delete(st)
     await db.commit()
 
+    # Handle installation-only callbacks (no code) as setup updates for existing connections
+    if not code:
+        if installation_id is not None:
+            conn = await _get_connection(db, owner_id)
+            if conn is not None:
+                conn.installation_id = installation_id
+                # best-effort: refresh login if token still valid
+                try:
+                    token = gh.decrypt(conn.access_token_enc)
+                    login = await gh.fetch_login(token)
+                    if login:
+                        conn.github_login = login
+                except Exception:
+                    pass
+                await db.commit()
+                return RedirectResponse(dest + "connected")
+        return RedirectResponse(dest + "error")
+
     try:
         token_data = await gh.exchange_code(code)
     except HTTPException:
@@ -388,7 +408,9 @@ async def github_callback(
     if conn is None:
         conn = GithubConnection(owner_id=owner_id)
         db.add(conn)
-    conn.installation_id = installation_id
+    # Only overwrite installation_id if GitHub provided one; preserve existing otherwise
+    if installation_id is not None:
+        conn.installation_id = installation_id
     conn.github_login = login
     gh.apply_token_response(conn, token_data)
     await db.commit()
@@ -399,8 +421,14 @@ async def github_callback(
 async def github_status(owner_id: CurrentUserId, db: DbSession):
     conn = await _get_connection(db, owner_id)
     if conn is None:
-        return GithubStatus(connected=False)
-    return GithubStatus(connected=True, login=conn.github_login)
+        return GithubStatus(connected=False, needs_setup=False)
+    needs_setup = conn.installation_id is None
+    return GithubStatus(
+        connected=True,
+        login=conn.github_login,
+        installation_id=conn.installation_id,
+        needs_setup=needs_setup,
+    )
 
 
 @api_router.get("/github/repos", response_model=List[RepoOut])
