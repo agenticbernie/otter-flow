@@ -2,15 +2,6 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, Waves, ShieldCheck, FileText, Lock } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-// Clearly-marked placeholder for company/legal details not yet provided.
-function PH({ children }) {
-  return (
-    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[0.85em] text-amber-700 dark:text-amber-400">
-      {children}
-    </span>
-  );
-}
-
 function LegalLayout({ icon: Icon, title, updated, children }) {
   return (
     <div className="min-h-screen bg-background">
@@ -66,21 +57,25 @@ function LegalNav() {
 
 export function Privacy() {
   return (
-    <LegalLayout icon={ShieldCheck} title="Privacy Policy" updated="Last updated: 2026 · Placeholder details marked in amber">
+    <LegalLayout icon={ShieldCheck} title="Privacy Policy" updated="Last updated: August 30, 2026">
       <p data-testid="privacy-content">
         This Privacy Policy explains how Otter Flow ("Otter", "we", "us") handles personal data.
-        We aim to write in plain language. We try to align our practices with Vietnam's Personal
-        Data Protection Law (Law No. 91/2025/QH15) and its implementing regulations, and with the
-        EU General Data Protection Regulation (GDPR) where it applies to you. We do not claim any
-        certification or independently verified compliance.
+        Otter Flow is operated by HackOn Team. HackOn Team is not currently a registered or
+        incorporated company. We aim to write in plain language. We try to align our practices with
+        Vietnam's Personal Data Protection Law (Law No. 91/2025/QH15) and its implementing
+        regulations, and with the EU General Data Protection Regulation (GDPR) where it applies to
+        you. We do not claim any certification or independently verified compliance.
       </p>
 
       <h2>Who is responsible for your data</h2>
       <p>
-        Data controller: <PH>[Legal entity name — to be provided]</PH>, <PH>[registered address — to be provided]</PH>.
-        Privacy contact: <PH>[privacy contact email — to be provided]</PH>. If we are required to
-        appoint a data protection officer or representative, their details will be added here:{" "}
-        <PH>[DPO / representative — if applicable]</PH>.
+        Otter Flow is operated by HackOn Team. HackOn Team is not currently a registered or
+        incorporated company and does not have a registered address or registration number to
+        disclose. For privacy matters, contact{" "}
+        <a href="mailto:privacy@hackon.team">privacy@hackon.team</a>. For general inquiries, contact{" "}
+        <a href="mailto:bernie@hackon.team">bernie@hackon.team</a>. We have not appointed a data
+        protection officer or EU representative at this time; if this changes, we will update this
+        policy.
       </p>
 
       <h2>What personal data we collect</h2>
@@ -133,17 +128,17 @@ export function Privacy() {
         <li><strong>Clerk</strong> — authentication and session management (account identity).</li>
         <li><strong>Supabase</strong> — managed PostgreSQL database hosting (stores your app data).</li>
         <li><strong>GitHub</strong> — the integration you choose to connect.</li>
-        <li><strong>Hosting/infrastructure provider</strong>: <PH>[provider name — to be provided]</PH>.</li>
+        <li><strong>Cloudflare Workers</strong> — hosting and edge infrastructure.</li>
       </ul>
       <p>We do not sell your personal data, and we do not use your project data to train AI models.</p>
 
       <h2>International data transfers</h2>
       <p>
         The providers above may process data outside Vietnam and/or the EEA. Where such transfers
-        happen and safeguards are legally required, we rely on appropriate mechanisms (for example,
-        standard contractual clauses or a provider's equivalent commitments). The specific transfer
-        mechanisms per provider are: <PH>[to be confirmed]</PH>. We have not independently verified
-        any provider's certifications.
+        happen and safeguards are legally required, we rely on appropriate mechanisms where available
+        (for example, standard contractual clauses or a provider's equivalent commitments), but we do
+        not claim any verified, certified, or audited transfer framework. We have not independently
+        verified any provider's certifications.
       </p>
 
       <h2>Security</h2>
@@ -168,7 +163,7 @@ export function Privacy() {
         right to: access your data; correct it; delete it; restrict or object to certain processing;
         data portability; and withdraw consent at any time (without affecting prior processing).
         You can exercise many of these directly in the app (edit or delete projects, disconnect
-        GitHub), or contact us at <PH>[privacy contact email — to be provided]</PH>. You may also have
+        GitHub), or contact us at <a href="mailto:privacy@hackon.team">privacy@hackon.team</a>. You may also have
         the right to lodge a complaint with your local data protection authority.
       </p>
 
@@ -176,7 +171,7 @@ export function Privacy() {
       <p>
         You can delete any project at any time, which removes its sessions, capsules, and telemetry.
         To delete your entire account and associated data, contact us at{" "}
-        <PH>[privacy contact email — to be provided]</PH> (self-serve account deletion is planned).
+        <a href="mailto:privacy@hackon.team">privacy@hackon.team</a> (self-serve account deletion is planned).
       </p>
 
       <h2>Changes to this policy</h2>
@@ -187,8 +182,9 @@ export function Privacy() {
 
       <h2>Contact</h2>
       <p>
-        Questions about privacy? Contact <PH>[privacy contact email — to be provided]</PH>
-        {" "}(entity: <PH>[legal entity name — to be provided]</PH>).
+        Questions about privacy? Contact <a href="mailto:privacy@hackon.team">privacy@hackon.team</a>
+        {" "}(operator: HackOn Team — Otter Flow is operated by HackOn Team; general contact:{" "}
+        <a href="mailto:bernie@hackon.team">bernie@hackon.team</a>).
       </p>
     </LegalLayout>
   );
@@ -196,11 +192,11 @@ export function Privacy() {
 
 export function Terms() {
   return (
-    <LegalLayout icon={FileText} title="Terms of Service" updated="Last updated: 2026 · Placeholder details marked in amber">
+    <LegalLayout icon={FileText} title="Terms of Service" updated="Last updated: August 30, 2026">
       <p data-testid="terms-content">
-        These Terms govern your use of Otter Flow ("Otter", "we", "us"), provided by{" "}
-        <PH>[legal entity name — to be provided]</PH>. By using Otter you agree to these Terms. Please
-        also read our <Link to="/privacy">Privacy Policy</Link>.
+        These Terms govern your use of Otter Flow ("Otter", "we", "us"), operated by HackOn Team.
+        HackOn Team is not currently a registered or incorporated company. By using Otter you agree
+        to these Terms. Please also read our <Link to="/privacy">Privacy Policy</Link>.
       </p>
 
       <h2>What Otter does</h2>
@@ -281,15 +277,17 @@ export function Terms() {
 
       <h2>Governing law</h2>
       <p>
-        These Terms are governed by the laws of <PH>[governing jurisdiction — to be provided]</PH>,
-        without prejudice to the mandatory consumer and data-protection rights you enjoy in your
-        country of residence. Disputes will be handled by the competent courts of{" "}
-        <PH>[venue — to be provided]</PH>, again without removing any mandatory local protections.
+        No specific governing law or venue has been designated for these Terms at this time. Nothing
+        in these Terms limits or waives the mandatory consumer and data-protection rights you enjoy
+        in your country of residence, and disputes remain subject to the competent courts and
+        authorities that have jurisdiction under applicable law.
       </p>
 
       <h2>Contact</h2>
       <p>
-        Questions about these Terms? Contact <PH>[contact email — to be provided]</PH>.
+        Questions about these Terms? Contact <a href="mailto:bernie@hackon.team">bernie@hackon.team</a>
+        {" "}(operator: HackOn Team — Otter Flow is operated by HackOn Team; privacy inquiries:{" "}
+        <a href="mailto:privacy@hackon.team">privacy@hackon.team</a>).
       </p>
     </LegalLayout>
   );
@@ -297,7 +295,7 @@ export function Terms() {
 
 export function Security() {
   return (
-    <LegalLayout icon={Lock} title="Security" updated="Last updated: 2026">
+    <LegalLayout icon={Lock} title="Security" updated="Last updated: August 30, 2026">
       <p data-testid="security-content">
         This page describes the <strong>actual security practices in the current MVP</strong>. We
         deliberately do not claim audits, penetration tests, or certifications (such as ISO 27001 or
@@ -316,6 +314,12 @@ export function Security() {
         <li>Authentication secrets and the GitHub Client Secret live only on the server.</li>
         <li>GitHub user tokens are handled server-side and <strong>encrypted at rest</strong>; they are never sent to the browser or stored in local storage.</li>
       </ul>
+
+      <h2>Hosting</h2>
+      <p>
+        Otter Flow is hosted on <strong>Cloudflare Workers</strong>. Application data is stored in
+        Supabase (managed PostgreSQL).
+      </p>
 
       <h2>Authorization and ownership isolation</h2>
       <p>
@@ -338,7 +342,8 @@ export function Security() {
       <h2>Reporting a concern</h2>
       <p>
         If you believe you've found a security issue, please contact{" "}
-        <PH>[security contact email — to be provided]</PH>. No online service can guarantee perfect
+        <a href="mailto:security@hackon.team">security@hackon.team</a> (general contact:{" "}
+        <a href="mailto:bernie@hackon.team">bernie@hackon.team</a>). No online service can guarantee perfect
         security, but we take reasonable steps to protect your data and will keep this page updated as
         our practices evolve.
       </p>

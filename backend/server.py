@@ -71,9 +71,12 @@ async def me(owner_id: CurrentUserId):
 
 @api_router.post("/projects", response_model=ProjectOut, status_code=201)
 async def create_project(payload: ProjectCreate, owner_id: CurrentUserId, db: DbSession):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Project name must not be empty or whitespace")
     project = Project(
         owner_id=owner_id,
-        name=payload.name.strip(),
+        name=name,
         description=(payload.description.strip() if payload.description else None),
     )
     db.add(project)
@@ -103,7 +106,10 @@ async def update_project(
 ):
     project = await _get_owned_project(db, project_id, owner_id)
     if payload.name is not None:
-        project.name = payload.name.strip()
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="Project name must not be empty or whitespace")
+        project.name = name
     if payload.description is not None:
         project.description = payload.description.strip() or None
     await db.commit()
@@ -218,11 +224,14 @@ async def end_session(
     if active is None:
         raise HTTPException(status_code=409, detail="No active session to end")
 
+    next_action = payload.next_action.strip()
+    if not next_action:
+        raise HTTPException(status_code=422, detail="next_action must not be empty or whitespace")
     capsule = Capsule(
         project_id=project_id,
         owner_id=owner_id,
         session_id=active.id,
-        next_action=payload.next_action.strip(),
+        next_action=next_action,
         workspace_pointer=(payload.workspace_pointer.strip() if payload.workspace_pointer else None),
         done_when=(payload.done_when.strip() if payload.done_when else None),
         estimated_minutes=payload.estimated_minutes,
@@ -298,10 +307,13 @@ class RepoLink(BaseModel):
 @api_router.post("/projects/{project_id}/link-repo", response_model=ProjectOut)
 async def link_repo(project_id: str, payload: RepoLink, owner_id: CurrentUserId, db: DbSession):
     project = await _get_owned_project(db, project_id, owner_id)
+    repo_url = payload.repo_url.strip()
+    if not repo_url:
+        raise HTTPException(status_code=422, detail="repo_url must not be empty or whitespace")
     project.repo_id = payload.repo_id
     project.repo_owner = (payload.repo_owner.strip() if payload.repo_owner else None)
     project.repo_name = (payload.repo_name.strip() if payload.repo_name else None)
-    project.repo_url = payload.repo_url.strip()
+    project.repo_url = repo_url
     await db.commit()
     await db.refresh(project)
     return project
@@ -416,10 +428,22 @@ async def github_disconnect(owner_id: CurrentUserId, db: DbSession):
 
 app.include_router(api_router)
 
+_cors_raw = os.environ.get('CORS_ORIGINS', '').strip()
+if _cors_raw and _cors_raw != '*':
+    _cors_origins = [o.strip() for o in _cors_raw.split(',') if o.strip()]
+else:
+    # Default: frontend origin + api subdomain; never use wildcard with credentials.
+    _cors_origins = list({
+        gh.FRONTEND_URL,
+        os.environ.get('FRONTEND_URL', 'https://otterflow.hackon.team').rstrip('/'),
+        'https://otterflow.hackon.team',
+        'https://api.otterflow.hackon.team',
+    })
+
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=False,
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
