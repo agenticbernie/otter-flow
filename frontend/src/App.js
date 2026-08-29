@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import Landing from "@/pages/Landing";
 import SignInPage from "@/pages/SignInPage";
 import Dashboard from "@/pages/Dashboard";
 import ProjectDetail from "@/pages/ProjectDetail";
@@ -22,17 +23,31 @@ function AppShell({ children }) {
   );
 }
 
-function AuthedApp() {
+function ClerkSpinner() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
+    </div>
+  );
+}
+
+// "/" — public landing for signed-out users; dashboard for signed-in users.
+// Landing renders immediately (even while Clerk initializes) so it never depends on auth.
+function Root() {
   return (
     <>
       <ClerkLoading>
-        <div className="flex min-h-screen items-center justify-center bg-background">
-          <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
-        </div>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="*" element={<ClerkSpinner />} />
+        </Routes>
       </ClerkLoading>
       <ClerkLoaded>
         <SignedOut>
-          <SignInPage />
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="*" element={<Navigate to="/sign-in" replace />} />
+          </Routes>
         </SignedOut>
         <SignedIn>
           <AppShell>
@@ -48,6 +63,25 @@ function AuthedApp() {
   );
 }
 
+// "/sign-in" — Clerk auth; if already signed in, go to the app.
+function SignInGate() {
+  return (
+    <>
+      <ClerkLoading>
+        <ClerkSpinner />
+      </ClerkLoading>
+      <ClerkLoaded>
+        <SignedIn>
+          <Navigate to="/" replace />
+        </SignedIn>
+        <SignedOut>
+          <SignInPage />
+        </SignedOut>
+      </ClerkLoaded>
+    </>
+  );
+}
+
 function App() {
   return (
     <div className="App">
@@ -56,7 +90,8 @@ function App() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/security" element={<Security />} />
-          <Route path="/*" element={<AuthedApp />} />
+          <Route path="/sign-in/*" element={<SignInGate />} />
+          <Route path="/*" element={<Root />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="bottom-right" richColors />
