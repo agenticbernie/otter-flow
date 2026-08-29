@@ -374,10 +374,20 @@ export default function Dashboard() {
     else if (gh === "error") toast.error("GitHub connection failed");
     if (gh) {
       window.history.replaceState({}, "", window.location.pathname);
-      // eagerly refresh status so modal never shows stale Connect button
-      loadGhStatus().then((s) => {
-        if (s?.connected && !s.needs_setup) loadRepos();
-      });
+      // eagerly refresh status so UI never shows stale Connect button
+      // safe diagnostics (no tokens)
+      console.info("[github] callback landing detected", gh);
+      const fetchWithRetry = async (attempt = 0) => {
+        const s = await loadGhStatus();
+        console.info("[github] status after callback", s);
+        if (s?.connected && !s.needs_setup) {
+          loadRepos();
+        } else if (gh === "connected" && !s?.connected && attempt < 2) {
+          // Clerk token may not be ready immediately after redirect; retry once
+          setTimeout(() => fetchWithRetry(attempt + 1), 800);
+        }
+      };
+      fetchWithRetry();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -27,7 +27,7 @@ services:
       - key: GITHUB_APP_SLUG
         value: otter-flow
       - key: GITHUB_CALLBACK_URL
-        value: https://otterflow.hackon.team/api/github/callback
+        value: https://api.otterflow.hackon.team/api/github/callback
       - key: FRONTEND_URL
         value: https://otterflow.hackon.team
       - key: TOKEN_ENCRYPTION_KEY

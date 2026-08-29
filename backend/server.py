@@ -365,18 +365,27 @@ async def github_callback(
     installation_id: Optional[int] = None, setup_action: Optional[str] = None,
 ):
     dest = f"{gh.FRONTEND_URL}/?github="
+    logger.info(
+        "github_callback hit: has_state=%s has_code=%s has_installation_id=%s setup_action=%s",
+        bool(state), bool(code), installation_id is not None, setup_action,
+    )
     if not state:
+        logger.warning("github_callback: missing state")
         return RedirectResponse(dest + "error")
 
     res = await db.execute(select(OAuthState).where(OAuthState.state == state))
     st = res.scalar_one_or_none()
-    if st is None or st.expires_at < utcnow():
-        if st is not None:
-            await db.delete(st)
-            await db.commit()
+    if st is None:
+        logger.warning("github_callback: state not found or already consumed")
+        return RedirectResponse(dest + "error")
+    if st.expires_at < utcnow():
+        logger.warning("github_callback: state expired for owner_id=%s", st.owner_id)
+        await db.delete(st)
+        await db.commit()
         return RedirectResponse(dest + "error")
 
     owner_id = st.owner_id
+    logger.info("github_callback: state matched for owner_id=%s has_code=%s has_installation_id=%s", owner_id, bool(code), installation_id is not None)
     await db.delete(st)
     await db.commit()
 
@@ -395,16 +404,25 @@ async def github_callback(
                 except Exception:
                     pass
                 await db.commit()
+                logger.info("github_callback: installation-only update committed for owner_id=%s installation_id=%s", owner_id, installation_id)
                 return RedirectResponse(dest + "connected")
+        logger.warning("github_callback: missing code and no installation_id for owner_id=%s", owner_id)
         return RedirectResponse(dest + "error")
 
     try:
         token_data = await gh.exchange_code(code)
-    except HTTPException:
+        logger.info("github_callback: token exchange succeeded for owner_id=%s has_refresh=%s", owner_id, "refresh_token" in token_data)
+    except HTTPException as exc:
+        logger.warning("github_callback: token exchange failed for owner_id=%s detail=%s", owner_id, getattr(exc, "detail", "unknown"))
+        return RedirectResponse(dest + "error")
+    except Exception as exc:
+        logger.warning("github_callback: token exchange exception for owner_id=%s %s", owner_id, type(exc).__name__)
         return RedirectResponse(dest + "error")
 
     login = await gh.fetch_login(token_data["access_token"])
+    logger.info("github_callback: fetch_login=%s for owner_id=%s", login, owner_id)
     conn = await _get_connection(db, owner_id)
+    is_new = conn is None
     if conn is None:
         conn = GithubConnection(owner_id=owner_id)
         db.add(conn)
@@ -414,6 +432,13 @@ async def github_callback(
     conn.github_login = login
     gh.apply_token_response(conn, token_data)
     await db.commit()
+    logger.info(
+        "github_callback: GithubConnection %s for owner_id=%s login=%s installation_id=%s",
+        "created" if is_new else "updated",
+        owner_id,
+        login,
+        conn.installation_id,
+    )
     return RedirectResponse(dest + "connected")
 
 

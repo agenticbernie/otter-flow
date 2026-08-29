@@ -61,10 +61,16 @@ export function RepositorySection({ project, onLinked }) {
     const params = new URLSearchParams(window.location.search);
     const gh = params.get("github");
     if (gh) {
-      // ProjectDetail also handles toast; we just ensure status refresh
-      loadStatus().then((s) => {
+      console.info("[github] RepositorySection callback landing", gh);
+      const fetchWithRetry = async (attempt = 0) => {
+        const s = await loadStatus();
+        console.info("[github] RepositorySection status after callback", s);
         if (s?.connected && !s.needs_setup) loadRepos();
-      });
+        else if (gh === "connected" && !s?.connected && attempt < 2) {
+          setTimeout(() => fetchWithRetry(attempt + 1), 800);
+        }
+      };
+      fetchWithRetry();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
