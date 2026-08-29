@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Layers, Package, Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useApi } from "@/lib/api";
+import { SessionLoop } from "@/components/SessionLoop";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,6 +157,10 @@ export default function ProjectDetail() {
         <ArrowLeft className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
         Dashboard
       </Button>
+
+      <div className="mb-10">
+        <SessionLoop projectId={id} />
+      </div>
 
       <div className="border-b border-border pb-10">
         <div className="flex items-start justify-between gap-4">

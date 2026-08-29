@@ -1,0 +1,25 @@
+{
+  "summary": "Backend-only testing of Otter Flow Session/Capsule core loop against live deployed API using real Clerk-minted session tokens and Supabase Postgres. Ran full pytest suite (test_crud.py, test_live_e2e.py, test_loop_e2e.py) — all 3 tests PASSED (42.3s). Covered: Start Session 201, prevent-multiple-active 409, refresh-safe session-state, End Session requires next_action (422 when missing, 200 with capsule payload including optional workspace_pointer/done_when/estimated_minutes), pending capsule returned by session-state after ending, Start Now spawns new active session and marks capsule consumed (double start-now -> 409), loop repeats yielding fresh pending capsules, and full ownership isolation (user B gets 404 on session-state, sessions/start, and capsules/{cid}/start-now for user A's resources). Data persistence in Supabase Postgres confirmed via subsequent GETs.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_loop_e2e.py",
+    "/app/backend/tests/test_crud.py",
+    "/app/backend/tests/test_live_e2e.py",
+    "/app/test_reports/pytest/iter2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py should be audited for size — if >700 lines, split session/capsule route handlers into a dedicated router module.",
+    "Ensure DB-level uniqueness/constraint (partial unique index on Session(project_id) WHERE status='active') exists to enforce single-active-session even under race conditions, not just app-level checks.",
+    "Confirm capsule 'consumed' transition is atomic with new session creation in start-now (single transaction) to avoid orphaned consumption on failure."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A"},
+  "test_credentials": "Uses CLERK_SECRET_KEY from /app/backend/.env to mint ephemeral users/sessions/tokens; cleaned up via DELETE /v1/users/{id}.",
+  "seed_data_creation": "None — test creates and tears down its own Clerk users each run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Loop endpoints (start/end/session-state/start-now) fully verified against live backend + Supabase. Frontend was explicitly skipped per request. When testing next step, keep test_loop_e2e.py as regression; it mints fresh Clerk tokens per request (short-lived) and cleans up users in finally block.",
+  "rca of the issue": "No issues found."
+}

@@ -27,5 +27,9 @@ export function useApi() {
     createProject: (payload) => request("post", "/projects", payload),
     updateProject: (id, payload) => request("put", `/projects/${id}`, payload),
     deleteProject: (id) => request("delete", `/projects/${id}`),
+    getSessionState: (pid) => request("get", `/projects/${pid}/session-state`),
+    startSession: (pid) => request("post", `/projects/${pid}/sessions/start`),
+    endSession: (pid, capsule) => request("post", `/projects/${pid}/sessions/end`, capsule),
+    startNow: (capsuleId) => request("post", `/capsules/${capsuleId}/start-now`),
   };
 }

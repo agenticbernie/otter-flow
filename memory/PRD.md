@@ -24,16 +24,17 @@ strict per-user data isolation.
 ## Data Models
 - **User**: id, clerk_id (unique, indexed), email, name, created_at.
 - **Project**: id, owner_id (FK→users.clerk_id, indexed), name, description?, created_at, updated_at.
-- **Session** (reserved, no workflow): id, project_id (FK), owner_id, created_at.
-- **Capsule** (reserved, no workflow): id, project_id (FK), owner_id, created_at.
+- **Session**: id, project_id (FK), owner_id, status (active/ended), started_at, ended_at?, created_at.
+- **Capsule**: id, project_id (FK), owner_id, session_id?, next_action, workspace_pointer?, done_when?, estimated_minutes?, status (pending/consumed), consumed_at?, consumed_by_session_id?, created_at.
 
 ## Implemented (2026-08-29)
 - Clerk auth wiring on frontend (ClerkProvider + themed appearance, sign-in page, UserButton sign-out).
 - Backend Clerk JWT verification + User upsert (`auth.py`).
-- Supabase Postgres integration (`database.py`, `models.py`, Alembic migration).
+- Supabase Postgres integration (`database.py`, `models.py`, Alembic migrations).
 - Project CRUD endpoints (create/list/get/update/delete), all owner-scoped.
-- Frontend: Dashboard (list + create dialog), Project detail (name+description, edit dialog, delete-with-confirmation), reserved Sessions/Capsules placeholders, light/dark toggle.
-- Verified backend end-to-end (pytest): auth rejection, full CRUD, persistence, cross-user isolation — via dependency-override and via LIVE deployed API with real Clerk tokens (2/2 passing).
+- Frontend: Dashboard (list + create dialog), Project detail (name+description, edit dialog, delete-with-confirmation), light/dark toggle.
+- **Session/Capsule core loop**: start/end session, required next-action capsule on end, session-state endpoint (refresh-safe), Start Now (consumes capsule + new session), single-active-session enforcement (409), full ownership isolation. Frontend `SessionLoop` component shows active timer / pending capsule / idle-start, rendered above project content.
+- Verified backend end-to-end (pytest, 3/3 passing): auth rejection, full CRUD, the complete loop, persistence, and cross-user isolation — via dependency-override and LIVE deployed API with real Clerk tokens.
 
 ## Known Issues / To Verify Manually
 - **Clerk frontend load**: in the automated headless browser the Clerk widget stayed on the loading spinner (likely third-party-cookie/handshake behavior in the proxied preview). Needs manual confirmation in a real browser (user is actively configuring Clerk providers).
